@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#15181f">
+<title>Codenames</title>
+<link rel="stylesheet" href="/base.css">
+<style>
+  body { font-size: 16px; min-height: 100%; }
+  .wrap { max-width: 480px; margin: 0 auto; padding: 8px 10px 16px; }
+  .screen { display: none; }
+  .screen.on { display: block; }
+  h1 { font-size: 28px; margin: 24px 0 8px; letter-spacing: 0.08em; text-align: center; }
+  h2 { font-size: 18px; margin: 18px 0 8px; }
+  .muted { color: var(--muted); }
+  input, select {
+    font: inherit; width: 100%; padding: 12px; border-radius: 10px; border: 0;
+    background: #fff; color: #111;
+  }
+  button {
+    font: inherit; font-weight: 700; border: 0; border-radius: 12px; padding: 13px 16px;
+    background: rgba(255, 255, 255, 0.12); color: var(--ink); cursor: pointer;
+  }
+  button.primary { background: var(--gold); color: #3b2c00; width: 100%; font-size: 18px; }
+  button.small { padding: 7px 10px; font-size: 13px; border-radius: 8px; }
+  button.danger { background: #7a1f22; }
+  button.on { background: var(--gold); color: #3b2c00; }
+  button:disabled { opacity: 0.4; }
+  .row { display: flex; align-items: center; gap: 6px; padding: 10px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+  .row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row select { width: auto; padding: 6px 8px; font-size: 14px; }
+  .setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 10px 0; }
+  .setting select { width: 140px; }
+  .pill { display: inline-block; padding: 4px 10px; border-radius: 99px; color: #fff; font-weight: 700; font-size: 14px; }
+  .actions { display: flex; flex-direction: column; gap: 8px; }
+
+  .status { border-radius: 10px; padding: 8px 12px; font-weight: 700; color: #fff; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+  .status small { font-weight: 600; font-size: 13px; opacity: 0.9; }
+  .hint { text-align: center; font-size: 15px; min-height: 20px; margin: 10px 0; color: var(--muted); }
+  .hint.go { color: var(--gold); font-weight: 700; font-size: 17px; }
+  .hint b { color: var(--ink); }
+
+  #cards { gap: 5px; margin: 8px 0 12px; }
+  #cards .wc { height: 46px; padding: 0 2px; font-size: 13px; border-radius: 7px; }
+  #cards .wc.revealed { opacity: 0.35; }
+  #cards .wc.revealed span { text-decoration: line-through; }
+  #cards.tappable .wc:not(.revealed) { cursor: pointer; }
+  #cards .wc.mine { box-shadow: 0 0 0 3px var(--gold), 0 0 12px 2px rgba(255, 213, 74, 0.7); transform: scale(1.04); z-index: 1; }
+  #cards .wc .vc { position: absolute; top: 2px; right: 3px; font-size: 10px; font-weight: 800; background: #222; color: #fff; border-radius: 6px; padding: 0 4px; }
+  /* Spymaster key: unrevealed agents get a coloured edge so the board still reads at a glance. */
+  #cards.key .wc:not(.revealed) { border: 3px solid rgba(0, 0, 0, 0.25); }
+
+  .clue-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+  .clue-form input { text-transform: uppercase; font-weight: 700; letter-spacing: 0.06em; font-size: 18px; }
+  .nums { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .nums button { padding: 10px 0; font-size: 18px; }
+  .log { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .log span { font-size: 13px; font-weight: 700; color: #fff; padding: 3px 9px; border-radius: 99px; }
+  /* Shown while the phone has lost its connection to the TV. */
+  .conn { position: fixed; top: 0; left: 0; right: 0; z-index: 60; background: #b3261e; color: #fff; text-align: center; font-weight: 700; font-size: 14px; padding: 6px; display: none; }
+  .conn.on { display: block; }
+  .admin-bottom { margin-top: 40px; }
+  .admin-bottom .label { width: 100%; font-size: 12px; color: var(--muted); }
+  .admin-tools { margin-top: 14px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.12); display: flex; gap: 8px; flex-wrap: wrap; }
+  .big { font-size: 34px; font-weight: 900; text-align: center; margin: 10px 0 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <section id="join" class="screen on">
+    <h1>CODENAMES</h1>
+    <p class="muted" style="text-align:center">Enter your name to join</p>
+    <form id="joinForm" style="display:flex;flex-direction:column;gap:10px;margin-top:20px">
+      <input id="name" maxlength="16" placeholder="Your name" autocomplete="nickname" required>
+      <button class="primary" type="submit">Join game</button>
+    </form>
+  </section>
+
+  <section id="lobby" class="screen">
+    <h1>CODENAMES</h1>
+    <p style="text-align:center">You're on <span class="pill" id="myTeam"></span> <span id="myRole"></span></p>
+    <div id="adminPanel">
+      <h2>Players</h2>
+      <p class="muted" style="font-size:13px;margin:0 0 4px">🕵&nbsp; picks the team's spymaster. Without one, the first to join gets it.</p>
+      <div id="playerRows"></div>
+      <h2>Settings</h2>
+      <div class="setting"><span>Turn timer</span>
+        <select id="timer">
+          <option value="0">Off</option><option value="60">1 minute</option><option value="90">1½ minutes</option>
+          <option value="120">2 minutes</option><option value="180">3 minutes</option>
+        </select>
+      </div>
+      <div class="actions" style="margin-top:16px">
+        <button id="autoTeams">Shuffle teams</button>
+        <button class="primary" id="start">Start game</button>
+      </div>
+    </div>
+    <div id="guestPanel">
+      <h2>Players</h2>
+      <div id="guestRows"></div>
+      <p class="muted" style="text-align:center;margin-top:20px" id="waitText"></p>
+    </div>
+    <div style="text-align:center;margin-top:24px"><button class="small" id="leave">Leave</button></div>
+  </section>
+
+  <section id="game" class="screen">
+    <div class="status" id="status"></div>
+    <div id="ended"></div>
+    <div class="hint" id="hint"></div>
+    <div id="clueBox"></div>
+    <div id="cards" class="grid"></div>
+    <div class="actions" id="actions"></div>
+    <div class="log" id="log"></div>
+  </section>
+
+  <section id="kicked" class="screen">
+    <h1>CODENAMES</h1>
+    <p style="text-align:center">You were removed from the game.</p>
+    <button class="primary" onclick="location.reload()">Join again</button>
+  </section>
+
+  <div id="videoRemote" style="display:none"></div>
+
+  <!-- Admin buttons live at the very bottom so they aren't hit by accident. -->
+  <div class="admin-tools admin-bottom" id="gameAdmin" style="display:none"></div>
+</div>
+<div class="conn" id="conn">Reconnecting to the TV…</div>
+<div class="toast" id="toast"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/shared/video-remote.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} },
+  };
+
+  // The QR code on each TV carries its room, so phones join that TV's game.
+  const socket = io({ query: { room: new URLSearchParams(location.search).get('room') || '' } });
+  const remote = createVideoRemote(socket, $('videoRemote'));
+  let state = null;
+  let clueNum = null; // number picked in the clue form
+  let wasMyMove = false;
+
+  function show(id) {
+    for (const s of document.querySelectorAll('.screen')) s.classList.toggle('on', s.id === id);
+  }
+
+  let toastTimer;
+  function toast(msg) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+  }
+
+  // ---------- connection ----------
+
+  socket.on('connect', () => {
+    const token = store.get('cnToken');
+    if (token) socket.emit('join', { token, name: store.get('cnName') });
+  });
+  socket.on('joined', ({ token }) => store.set('cnToken', token));
+  socket.on('toast', (m) => { toast(m); if (state) render(); });
+  // A phone that was asleep reconnects as soon as it's opened, instead of waiting for the retry timer.
+  socket.on('disconnect', () => $('conn').classList.add('on'));
+  socket.on('connect', () => $('conn').classList.remove('on'));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && !socket.connected) socket.connect(); });
+  // Tapped buttons show they're working right away; the next update from the TV redraws them.
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('#reveal, #endTurn');
+    if (b && !b.disabled) setTimeout(() => { b.disabled = true; b.textContent = 'Working…'; });
+  });
+
+  socket.on('kicked', () => { store.set('cnToken', null); state = null; show('kicked'); $('videoRemote').style.display = 'none'; });
+  socket.on('state', (s) => {
+    if (!s.you) { store.set('cnToken', null); state = null; show('join'); $('videoRemote').style.display = 'none'; return; }
+    state = s;
+    render();
+    $('videoRemote').style.display = '';
+    remote.render(s.video);
+  });
+
+  $('name').value = store.get('cnName') || '';
+  $('joinForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = $('name').value.trim();
+    if (!name) return;
+    store.set('cnName', name);
+    socket.emit('join', { name, token: store.get('cnToken') });
+  });
+
+  // ---------- render ----------
+
+  const teamOf = (id) => state.teams.find((t) => t.id === id);
+  const numLabel = (n) => (n === 'inf' ? '∞' : n);
+
+  function render() {
+    $('gameAdmin').style.display = state.phase === 'playing' && state.you.admin ? '' : 'none';
+    if (state.phase === 'lobby') { renderLobby(); show('lobby'); }
+    else { renderGame(); show('game'); }
+  }
+
+  function renderLobby() {
+    const me = state.you;
+    const t = teamOf(me.team);
+    $('myTeam').textContent = t.name;
+    $('myTeam').style.background = t.color;
+    $('myRole').textContent = me.spymaster ? 'as spymaster' : '';
+    $('adminPanel').style.display = me.admin ? '' : 'none';
+    $('guestPanel').style.display = me.admin ? 'none' : '';
+    const sorted = [...state.players].sort((a, b) => (a.team === b.team ? 0 : a.team === 'red' ? -1 : 1));
+
+    if (me.admin) {
+      $('playerRows').innerHTML = sorted.map((p) => `
+        <div class="row">
+          <span class="dot" style="background:${teamOf(p.team).color}"></span>
+          <span class="name">${esc(p.name)}${p.admin ? '<span class="tag">admin</span>' : ''}${p.connected ? '' : ' <span class="muted">(offline)</span>'}</span>
+          <button class="small ${p.spymaster ? 'on' : ''}" data-spy="${p.id}" title="Make spymaster">🕵</button>
+          <select data-team="${p.id}">${state.teams.map((t) => `<option value="${t.id}" ${t.id === p.team ? 'selected' : ''}>${t.name}</option>`).join('')}</select>
+          ${p.id === me.id ? '' : `<button class="small" data-admin="${p.id}" title="Make admin">★</button><button class="small danger" data-kick="${p.id}" title="Remove">✕</button>`}
+        </div>`).join('');
+      $('timer').value = String(state.timerSetting);
+    } else {
+      $('guestRows').innerHTML = sorted.map((p) => `
+        <div class="row"><span class="dot" style="background:${teamOf(p.team).color}"></span>
+        <span class="name">${esc(p.name)}${p.spymaster ? '<span class="tag spy">spymaster</span>' : ''}${p.admin ? '<span class="tag">admin</span>' : ''}${p.id === me.id ? ' (you)' : ''}</span></div>`).join('');
+      const admin = state.players.find((p) => p.admin);
+      $('waitText').textContent = `Waiting for ${admin ? admin.name : 'the admin'} to start the game…`;
+    }
+  }
+
+  function renderGame() {
+    const me = state.you;
+    const myTeam = teamOf(me.team);
+    const playing = state.phase === 'playing';
+    const myTurn = playing && state.turnTeam === me.team;
+    const turn = teamOf(state.turnTeam);
+    const iGiveClue = myTurn && me.spymaster && state.stage === 'clue';
+    const iGuess = myTurn && !me.spymaster && state.stage === 'guess';
+
+    const red = teamOf('red'), blue = teamOf('blue');
+    $('status').style.background = myTeam.color;
+    $('status').innerHTML = `<span>${myTeam.name} · ${me.spymaster ? 'Spymaster' : 'Guesser'}</span>
+      <small>Red ${red.remaining} · Blue ${blue.remaining}</small>`;
+
+    // Winner
+    if (!playing) {
+      const w = teamOf(state.winner);
+      $('ended').innerHTML = `<div class="big" style="color:${w.color}">${w.name} wins!</div>`;
+    } else {
+      $('ended').innerHTML = '';
+    }
+
+    // What to do now
+    const hint = $('hint');
+    hint.classList.toggle('go', iGiveClue || iGuess);
+    if (!playing) hint.textContent = state.winReason === 'assassin' ? 'The assassin was found. Here is the full key.' : 'All agents found. Here is the full key.';
+    else if (iGiveClue) hint.textContent = 'Your turn: give your team a clue';
+    else if (iGuess) {
+      const left = state.guessesLeft === null ? 'unlimited guesses' : `${state.guessesLeft} guess${state.guessesLeft === 1 ? '' : 'es'} left`;
+      hint.innerHTML = `<b>${esc(state.clue.word)} ${numLabel(state.clue.number)}</b> · ${left}<br>Tap to suggest, then reveal`;
+    } else if (state.stage === 'clue') hint.textContent = `Waiting for ${turn.name}'s spymaster… watch the TV`;
+    else hint.innerHTML = `${turn.name} is guessing <b>${esc(state.clue.word)} ${numLabel(state.clue.number)}</b>${me.spymaster && myTurn ? ' · keep a straight face!' : ''}`;
+
+    // Buzz once when it becomes this phone's move.
+    const myMove = iGiveClue || iGuess;
+    if (myMove && !wasMyMove && navigator.vibrate) navigator.vibrate(150);
+    wasMyMove = myMove;
+
+    // Clue form (spymaster's turn)
+    if (iGiveClue) {
+      if (!$('clueWord')) {
+        clueNum = null;
+        $('clueBox').innerHTML = `<form class="clue-form" id="clueForm">
+          <input id="clueWord" maxlength="24" placeholder="One-word clue" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <div class="nums">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 'inf'].map((n) => `<button type="button" data-num="${n}">${numLabel(n)}</button>`).join('')}
+          <button class="primary" type="submit" style="grid-column:span 1;font-size:15px;padding:0">Give</button></div>
+        </form>`;
+      }
+    } else {
+      $('clueBox').innerHTML = '';
+    }
+
+    // Cards: spymasters (and everyone at the end) see colours; guessers on their turn can tap.
+    const showKey = me.spymaster || !playing;
+    const grid = $('cards');
+    grid.classList.toggle('key', showKey);
+    grid.classList.toggle('tappable', iGuess);
+    grid.innerHTML = state.cards.map((c, i) => {
+      const color = c.color || (state.key ? state.key[i] : null);
+      const cls = ['wc'];
+      if (color && (showKey || c.revealed)) cls.push(color);
+      if (c.revealed) cls.push('revealed');
+      if (iGuess && state.myVote === i) cls.push('mine');
+      const vc = c.votes.length ? `<span class="vc">${c.votes.length}</span>` : '';
+      return `<div class="${cls.join(' ')}" data-card="${i}" ><span>${esc(c.word)}</span>${vc}</div>`;
+    }).join('');
+    // Shrink long words until they fit their card.
+    for (const span of grid.querySelectorAll('.wc span')) {
+      let fs = 13;
+      while (span.offsetWidth > span.parentElement.clientWidth - 6 && fs > 7) span.style.fontSize = --fs + 'px';
+    }
+
+    // Guess actions
+    const acts = [];
+    if (iGuess) {
+      const pick = state.myVote;
+      acts.push(`<button class="primary" id="reveal" ${pick === null ? 'disabled' : ''}>${pick === null ? 'Tap a word to suggest it' : `Reveal ${esc(state.cards[pick].word)}`}</button>`);
+      acts.push(`<button id="endTurn" ${state.guessesMade === 0 ? 'disabled' : ''}>End turn</button>`);
+    }
+    $('actions').innerHTML = acts.join('');
+
+    $('log').innerHTML = state.clueLog.map((c) =>
+      `<span style="background:${teamOf(c.team).color}">${esc(c.word)} ${numLabel(c.number)}</span>`).join('');
+
+    $('gameAdmin').innerHTML = '<span class="label">Admin</span><button class="small" id="pass">Pass turn</button><button class="small danger" id="toLobby">End game</button>';
+    // After a game, the admin's next-round buttons stay up top with the result.
+    if (!playing && me.admin) $('actions').innerHTML = '<button class="primary" id="again">Play again (new words)</button><button class="small" id="toLobby">Back to lobby</button>';
+  }
+
+  addEventListener('resize', () => { if (state && state.phase !== 'lobby') renderGame(); });
+
+  // ---------- input ----------
+
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('button, .wc');
+    if (!t) return;
+    const d = t.dataset;
+    if (d.spy) socket.emit('admin:spymaster', d.spy);
+    else if (d.admin) { if (confirm('Make this player the admin?')) socket.emit('admin:makeAdmin', d.admin); }
+    else if (d.kick) socket.emit('admin:kick', d.kick);
+    else if (d.num) {
+      clueNum = d.num === 'inf' ? 'inf' : +d.num;
+      for (const b of document.querySelectorAll('[data-num]')) b.classList.toggle('on', b === t);
+    }
+    else if (d.card !== undefined && $('cards').classList.contains('tappable') && !t.classList.contains('revealed')) socket.emit('vote', +d.card);
+    else if (t.id === 'reveal' && state.myVote !== null) socket.emit('reveal', state.myVote);
+    else if (t.id === 'endTurn') socket.emit('endTurn');
+    else if (t.id === 'autoTeams') socket.emit('admin:autoTeams');
+    else if (t.id === 'start') socket.emit('admin:start');
+    else if (t.id === 'again') socket.emit('admin:again');
+    else if (t.id === 'pass') { if (confirm('Pass the turn to the other team?')) socket.emit('admin:pass'); }
+    else if (t.id === 'toLobby') { if (state.phase === 'ended' || confirm('End this game for everyone?')) socket.emit('admin:lobby'); }
+    else if (t.id === 'leave') { socket.emit('leave'); store.set('cnToken', null); }
+  });
+
+  document.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t.dataset.team) socket.emit('admin:team', { playerId: t.dataset.team, team: t.value });
+    else if (t.id === 'timer') socket.emit('admin:timer', +t.value);
+  });
+
+  document.addEventListener('submit', (e) => {
+    if (e.target.id !== 'clueForm') return;
+    e.preventDefault();
+    const word = $('clueWord').value.trim();
+    if (!word) return toast('Type a one-word clue');
+    if (clueNum === null) return toast('Pick how many words it covers');
+    socket.emit('clue', { word, number: clueNum });
+  });
+</script>
+</body>
+</html>

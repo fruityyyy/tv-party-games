@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Codenames TV</title>
+<link rel="stylesheet" href="/base.css">
+<style>
+  body { overflow: hidden; font-size: 2vh; }
+  .screen { position: absolute; inset: 0; padding: 3vh 3vw; display: none; }
+  .screen.on { display: flex; }
+
+  /* Lobby */
+  #lobby { align-items: center; justify-content: center; gap: 6vw; }
+  .join { text-align: center; }
+  .join h1 { font-size: 7vh; margin: 0 0 1vh; letter-spacing: 0.08em; }
+  .join .sub { font-size: 3vh; color: var(--muted); margin-bottom: 3vh; }
+  .qr { background: #fff; padding: 2vh; border-radius: 2vh; width: 46vh; height: 46vh; }
+  .qr img { width: 100%; height: 100%; display: block; }
+  .url { font-size: 2.6vh; margin-top: 2vh; font-family: ui-monospace, monospace; }
+  .roster { min-width: 30vw; display: flex; flex-direction: column; gap: 2vh; }
+  .team-box { background: var(--panel); border-radius: 1.5vh; padding: 2vh 2.5vh; border-left: 1vh solid; }
+  .team-box h2 { margin: 0 0 1vh; font-size: 3.2vh; }
+  .team-box .p { font-size: 2.8vh; padding: 0.4vh 0; }
+  .waiting { color: var(--muted); font-size: 2.6vh; }
+
+  /* Game */
+  #game { flex-direction: row; gap: 2.2vh; padding: 2.5vh 2.5vw; }
+  .top { display: grid; grid-template-columns: 1fr 1.7fr 1fr auto; gap: 2vh; height: 17vh; }
+  .side { border-radius: 1.5vh; padding: 1.4vh 2vh; background: var(--panel); border: 0.4vh solid transparent; display: flex; gap: 2vh; align-items: center; transition: border-color 0.3s, box-shadow 0.3s; }
+  .side.active { border-color: currentColor; box-shadow: 0 0 2.5vh -0.3vh currentColor; }
+  .side .left { font-size: 9vh; font-weight: 900; line-height: 1; min-width: 1.2ch; text-align: center; }
+  .side .who { color: var(--ink); font-size: 2.2vh; line-height: 1.45; min-width: 0; }
+  .side .who b { font-size: 2.8vh; }
+  .side .who .muted { color: var(--muted); }
+  .center { border-radius: 1.5vh; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; text-align: center; position: relative; transition: background 0.3s; }
+  .center .label { font-size: 2.4vh; opacity: 0.9; letter-spacing: 0.08em; text-transform: uppercase; }
+  .center .clue { font-size: 7.5vh; font-weight: 900; letter-spacing: 0.06em; line-height: 1.05; }
+  .center .clue .n { display: inline-block; background: rgba(0, 0, 0, 0.25); border-radius: 1vh; padding: 0 1.6vh; margin-left: 1.5vh; }
+  .center .timer { position: absolute; top: 1.2vh; right: 1.6vh; font-size: 2.8vh; font-weight: 800; font-variant-numeric: tabular-nums; background: rgba(0, 0, 0, 0.3); border-radius: 0.8vh; padding: 0.3vh 1vh; }
+  .center .timer.low { background: #fff; color: #b00; }
+  .mini-qr { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.6vh; color: var(--muted); font-size: 1.6vh; }
+  .mini-qr img { height: 13vh; background: #fff; padding: 0.6vh; border-radius: 1vh; }
+
+  #board { flex: 1; gap: 1.4vh; grid-template-rows: repeat(5, 1fr); min-height: 0; }
+  #board .wc { font-size: var(--fs); border-radius: 1.2vh; box-shadow: inset 0 -0.7vh 0 rgba(0, 0, 0, 0.13); }
+  #board .wc.revealed span { font-size: 0.55em; opacity: 0.7; }
+  #board .wc.flip { animation: flip 0.6s ease-out; }
+  /* Game over: cards nobody guessed show their colour with a white frame. */
+  #board .wc.ghost { opacity: 0.85; box-shadow: inset 0 0 0 0.6vh rgba(255, 255, 255, 0.55); }
+  .votes { position: absolute; left: 0.8vh; right: 0.8vh; bottom: 0.9vh; display: flex; flex-wrap: wrap; gap: 0.5vh; justify-content: center; }
+  .votes i { font-style: normal; font-size: 2.3vh; font-weight: 700; color: #fff; padding: 0.2vh 1.1vh; border-radius: 99px; }
+  #board .wc.voted { box-shadow: inset 0 0 0 0.6vh var(--gold), inset 0 -0.7vh 0 rgba(0, 0, 0, 0.13); }
+
+  .banner { position: absolute; top: 40vh; left: 50%; transform: translateX(-50%); font-size: 6vh; font-weight: 900; padding: 2vh 5vh; border-radius: 2vh; color: #fff; z-index: 5; display: none; box-shadow: 0 2vh 6vh rgba(0, 0, 0, 0.6); white-space: nowrap; }
+  .banner.on { display: block; animation: drop 0.35s ease-out; }
+  .banner small { display: block; font-size: 0.45em; font-weight: 600; opacity: 0.9; text-align: center; }
+
+  /* YouTube panel: a column to the right of the board; the player is laid over the visible slot
+     (see /shared/video-tv.js). Big-video mode widens the column. */
+  #game .main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2.2vh; }
+  .vcol { display: none; width: 40vw; flex-direction: column; gap: 1.2vh; }
+  .video-big .vcol { width: 60vw; }
+  .vslot { display: none; width: 100%; aspect-ratio: 16 / 9; border-radius: 1vh; background: #000; flex-shrink: 0; }
+  .vcap { display: none; font-size: 2vh; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .video-on .vcol, .video-on .vslot, .video-on .vcap { display: block; }
+  .video-on .vcol { display: flex; }
+  /* With a video on, the team boxes move under it and the clue gets the full width above the board. */
+  .video-on .top { grid-template-columns: 1fr; height: 13vh; }
+  .video-on .top .side, .video-on .top .mini-qr { display: none; }
+  .vteams { display: flex; flex-direction: column; gap: 1.2vh; }
+  .vteams .side { height: 14vh; }
+  .video-big .vteams { flex-direction: row; }
+  .video-big .vteams .side { flex: 1; min-width: 0; }
+  .vcol .mini-qr { flex-direction: row; justify-content: flex-start; gap: 1.5vh; font-size: 2vh; margin-top: auto; }
+</style>
+</head>
+<body>
+  <section id="lobby" class="screen on">
+    <div class="join">
+      <h1>CODENAMES</h1>
+      <div class="sub">Scan with your phone to join</div>
+      <div class="qr"><img class="joinqr" src="" alt="Join QR code"></div>
+      <div class="url" id="url"></div>
+    </div>
+    <div class="roster"><div id="roster" style="display:flex;flex-direction:column;gap:2vh"></div>
+      <div class="vslot" data-video-slot></div><div class="vcap" id="vcapLobby"></div></div>
+  </section>
+
+  <section id="game" class="screen">
+    <div class="main">
+      <div class="top">
+        <div class="side" id="side-red"></div>
+        <div class="center" id="center"></div>
+        <div class="side" id="side-blue"></div>
+        <div class="mini-qr"><img class="joinqr" src="" alt=""><span>Scan to join</span></div>
+      </div>
+      <div id="board" class="grid"></div>
+    </div>
+    <aside class="vcol">
+      <div class="vslot" data-video-slot></div>
+      <div class="vcap" id="vcap"></div>
+      <div class="vteams"><div class="side" id="vside-red"></div><div class="side" id="vside-blue"></div></div>
+      <div class="mini-qr"><img class="joinqr" src="" alt=""><span>Scan to join</span></div>
+    </aside>
+  </section>
+
+  <div class="banner" id="banner"></div>
+  <div class="toast" id="toast"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/shared/video-tv.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const COLOR_NAME = { red: 'Red agent', blue: 'Blue agent', neutral: 'Bystander', assassin: 'THE ASSASSIN' };
+  // Which game this TV shows; in the cloud each TV has its own room code.
+  const ROOM = new URLSearchParams(location.search).get('room') || '';
+  const socket = io({ query: { room: ROOM } });
+  const tvVideo = createTvVideo(socket);
+  let state = null;
+  let skew = 0; // server clock minus ours, for the timer
+  let lastSeenReveal = null;
+  let lastRound = 0;
+  let cardW = 300, cardH = 150;
+
+  // The join link changes when the TV moves to another network: redraw the link and every QR code.
+  function showJoin({ joinUrl }) {
+    if ($('url').textContent === joinUrl) return;
+    $('url').textContent = joinUrl;
+    for (const img of document.querySelectorAll('img.joinqr')) img.src = `/api/qr.svg?room=${ROOM}&t=${Date.now()}`;
+  }
+  const loadJoin = () => fetch('/api/info?room=' + ROOM).then((r) => r.json()).then(showJoin);
+  loadJoin();
+  socket.on('info', loadJoin);
+  socket.on('connect', () => socket.emit('tv:hello'));
+  socket.on('state', (s) => { state = s; skew = s.now - Date.now(); render(); });
+  socket.on('toast', (msg) => {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2600);
+  });
+
+  // Word size follows the card size and the word's length, so long words still fit.
+  function fit() {
+    const b = $('board').getBoundingClientRect();
+    if (b.width) { cardW = (b.width - innerHeight * 0.014 * 4) / 5; cardH = (b.height - innerHeight * 0.014 * 4) / 5; }
+  }
+  const fontFor = (word) => Math.floor(Math.min(cardH * 0.34, (cardW * 0.88) / (word.length * 0.72))) + 'px';
+  addEventListener('resize', () => { fit(); if (state) render(); });
+
+  const teamOf = (id) => state.teams.find((t) => t.id === id);
+  const numLabel = (n) => (n === 'inf' ? '∞' : n);
+
+  function render() {
+    const inGame = state.phase !== 'lobby';
+    $('lobby').classList.toggle('on', !inGame);
+    $('game').classList.toggle('on', inGame);
+    const v = state.video;
+    document.body.classList.toggle('video-on', v.active);
+    document.body.classList.toggle('video-big', v.active && v.big);
+    $('vcap').innerHTML = $('vcapLobby').innerHTML = v.active
+      ? `${v.paused ? '⏸ ' : '▶ '}${esc(v.title || '')}${v.queue.length ? ` · ${v.queue.length} up next` : ''}` : '';
+    requestAnimationFrame(() => tvVideo.place(v.active)); // after the screen below is drawn
+    if (!inGame) return renderLobby();
+    fit();
+
+    for (const t of state.teams) {
+      const ps = state.players.filter((p) => p.team === t.id);
+      const spy = ps.find((p) => p.spymaster);
+      const ops = ps.filter((p) => !p.spymaster);
+      // Drawn in both places; CSS shows the top bar's or the video column's copy.
+      for (const el of [$('side-' + t.id), $('vside-' + t.id)]) {
+        el.style.color = t.color;
+        el.classList.toggle('active', state.phase === 'playing' && state.turnTeam === t.id);
+        el.innerHTML = `<div class="left">${t.remaining}</div>
+          <div class="who"><b style="color:${t.color}">${t.name}</b> <span class="muted">· ${t.remaining === 1 ? 'agent' : 'agents'} left</span><br>
+          Spymaster: <b class="${spy && !spy.connected ? 'off' : ''}">${spy ? esc(spy.name) : '—'}</b><br>
+          <span class="muted">${ops.map((p) => `<span class="${p.connected ? '' : 'off'}">${esc(p.name)}</span>`).join(', ') || 'No guessers'}</span></div>`;
+      }
+    }
+
+    const c = $('center');
+    if (state.phase === 'ended') {
+      const w = teamOf(state.winner);
+      const loser = teamOf(state.winner === 'red' ? 'blue' : 'red');
+      c.style.background = w.color;
+      c.innerHTML = `<div class="clue">${w.name.toUpperCase()} WINS!</div>
+        <div class="label">${state.winReason === 'assassin' ? `${loser.name} found the assassin` : `${w.name} found all their agents`}</div>`;
+    } else {
+      const t = teamOf(state.turnTeam);
+      const spy = state.players.find((p) => p.team === t.id && p.spymaster);
+      c.style.background = t.color;
+      c.innerHTML = state.stage === 'clue'
+        ? `<div class="label">${t.name} team's turn</div><div class="clue" style="font-size:4.6vh">${spy ? esc(spy.name) : 'Spymaster'} is thinking…</div>`
+        : `<div class="label">${t.name} clue</div>
+           <div class="clue">${esc(state.clue.word)}<span class="n">${numLabel(state.clue.number)}</span></div>
+           <div class="label">${state.guessesLeft === null ? 'Unlimited guesses' : `${state.guessesLeft} guess${state.guessesLeft === 1 ? '' : 'es'} left`}</div>`;
+      if (state.turnEndsAt) c.insertAdjacentHTML('beforeend', '<div class="timer" id="timer"></div>');
+      tickTimer();
+    }
+
+    const lr = state.lastReveal;
+    const fresh = lr && lastSeenReveal !== null && lr.id !== lastSeenReveal && state.round === lastRound;
+    $('board').innerHTML = state.cards.map((card, i) => {
+      const cls = ['wc'];
+      if (card.color) cls.push(card.color, card.revealed ? 'revealed' : 'ghost');
+      if (card.votes.length) cls.push('voted');
+      if (fresh && lr.index === i) cls.push('flip');
+      const tc = teamOf(state.turnTeam);
+      const votes = card.votes.length ? `<div class="votes">${card.votes.map((n) => `<i style="background:${tc.color}">${esc(n)}</i>`).join('')}</div>` : '';
+      return `<div class="${cls.join(' ')}" style="--fs:${fontFor(card.word)}"><span>${esc(card.word)}</span>${votes}</div>`;
+    }).join('');
+
+    if (fresh) {
+      const bg = lr.color === 'neutral' ? '#8a7a4e' : lr.color === 'assassin' ? '#000' : teamOf(lr.color).color;
+      showBanner(`${esc(lr.word)}<small>${esc(lr.name)} revealed · ${COLOR_NAME[lr.color]}</small>`, bg);
+    }
+    lastSeenReveal = lr ? lr.id : 0;
+    lastRound = state.round;
+  }
+
+  function tickTimer() {
+    const el = $('timer');
+    if (!el || !state || !state.turnEndsAt) return;
+    const left = Math.max(0, Math.ceil((state.turnEndsAt - (Date.now() + skew)) / 1000));
+    el.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+    el.classList.toggle('low', left <= 10);
+  }
+  setInterval(tickTimer, 250);
+
+  function renderLobby() {
+    lastSeenReveal = null;
+    $('roster').innerHTML = state.players.length === 0
+      ? '<div class="waiting">Waiting for players… The first to join becomes the admin.</div>'
+      : state.teams.map((t) => {
+          const ps = state.players.filter((p) => p.team === t.id);
+          return `<div class="team-box" style="border-color:${t.color}"><h2 style="color:${t.color}">${t.name}</h2>
+            ${ps.map((p) => `<div class="p ${p.connected ? '' : 'off'}">${esc(p.name)}${p.spymaster ? '<span class="tag spy">spymaster</span>' : ''}${p.admin ? '<span class="tag">admin</span>' : ''}</div>`).join('') || '<div class="waiting">No players yet</div>'}
+          </div>`;
+        }).join('') + '<div class="waiting">Each team needs a spymaster and at least one guesser.<br>The admin starts the game from their phone.</div>';
+  }
+
+  let bannerTimer;
+  function showBanner(html, color) {
+    const b = $('banner');
+    b.innerHTML = html;
+    b.style.background = color;
+    b.classList.remove('on'); void b.offsetWidth; b.classList.add('on');
+    clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(() => b.classList.remove('on'), 2600);
+  }
+</script>
+</body>
+</html>

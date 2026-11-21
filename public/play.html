@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0f3a28">
+<title>Sequence</title>
+<link rel="stylesheet" href="/board.css">
+<style>
+  body { font-size: 16px; min-height: 100%; }
+  .wrap { max-width: 480px; margin: 0 auto; padding: 8px 10px 10px; }
+  .screen { display: none; }
+  .screen.on { display: block; }
+  h1 { font-size: 28px; margin: 24px 0 8px; letter-spacing: 0.04em; text-align: center; }
+  h2 { font-size: 18px; margin: 18px 0 8px; }
+  .muted { color: var(--muted); }
+  input, select {
+    font: inherit; width: 100%; padding: 12px; border-radius: 10px; border: 0;
+    background: #fff; color: #111;
+  }
+  button {
+    font: inherit; font-weight: 700; border: 0; border-radius: 12px; padding: 13px 16px;
+    background: rgba(255, 255, 255, 0.12); color: var(--ink); cursor: pointer;
+  }
+  button.primary { background: var(--gold); color: #3b2c00; width: 100%; font-size: 18px; }
+  button.small { padding: 7px 10px; font-size: 13px; border-radius: 8px; }
+  button.danger { background: #7a1f22; }
+  button:disabled { opacity: 0.4; }
+  .row { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+  .row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row select { width: auto; padding: 6px 8px; font-size: 14px; }
+  .seg { display: flex; gap: 6px; }
+  .seg button { flex: 1; }
+  .seg button.on { background: var(--gold); color: #3b2c00; }
+  .setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 10px 0; }
+  .setting select { width: 120px; }
+  .pill { display: inline-block; padding: 4px 10px; border-radius: 99px; color: #fff; font-weight: 700; font-size: 14px; }
+  .tag { font-size: 11px; background: var(--gold); color: #3b2c00; border-radius: 6px; padding: 1px 6px; margin-left: 6px; }
+
+  .status { border-radius: 10px; padding: 7px 12px; font-weight: 700; font-size: 16px; color: #fff; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+  .status small { font-weight: 400; opacity: 0.85; font-size: 13px; }
+  .hint { text-align: center; font-size: 15px; min-height: 20px; margin: 14px 0 0; color: var(--muted); }
+  .hand { display: flex; justify-content: center; gap: 7px; margin: 22px 0 18px; flex-wrap: wrap; }
+  .card {
+    --u: 66px;
+    width: 66px; height: 96px; border-radius: 8px;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+    overflow: visible;
+  }
+  .card .pip { right: auto; bottom: auto; left: 50%; top: 68%; transform: translate(-50%, -50%); font-size: 36px; }
+
+  /* Aiming on the TV: spot 1/2 buttons or arrows. */
+  #pick { margin-bottom: 14px; }
+  .spots { display: flex; gap: 12px; }
+  .spot { flex: 1; font-size: 44px; padding: 18px 8px; line-height: 1; }
+  .spot.on { background: var(--gold); color: #3b2c00; }
+  .dpad { display: grid; grid-template-columns: repeat(3, 76px); grid-auto-rows: 64px; gap: 8px; justify-content: center; }
+  .dpad button { font-size: 30px; padding: 0; border-radius: 14px; }
+  .dpad button:active { background: var(--gold); color: #3b2c00; }
+  #game button.primary { padding: 10px 16px; font-size: 17px; }
+  .card .k {
+    position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%);
+    font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em;
+    background: #222; color: #fff; padding: 2px 6px; border-radius: 6px; white-space: nowrap;
+  }
+  .card .k.wild { background: #1fa155; }
+  .card .k.remove { background: #c4161c; }
+  .card.sel { transform: translateY(-10px) scale(1.06); box-shadow: 0 0 0 3px var(--gold), 0 0 16px 4px rgba(255, 213, 74, 0.8); }
+  .card.dead { filter: grayscale(1) brightness(0.6); }
+  .hand.picking .card:not(.sel) { filter: brightness(0.55); }
+  .hint.go { color: var(--gold); font-weight: 700; font-size: 16px; }
+  .actions { display: flex; flex-direction: column; gap: 8px; }
+  /* Shown while the phone has lost its connection to the TV. */
+  .conn { position: fixed; top: 0; left: 0; right: 0; z-index: 60; background: #b3261e; color: #fff; text-align: center; font-weight: 700; font-size: 14px; padding: 6px; display: none; }
+  .conn.on { display: block; }
+  .admin-bottom { margin-top: 40px; }
+  .admin-bottom .label { width: 100%; font-size: 12px; color: var(--muted); }
+  .admin-tools { margin-top: 12px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.12); display: flex; gap: 8px; flex-wrap: wrap; }
+  .big { font-size: 40px; font-weight: 800; text-align: center; margin: 30px 0 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <section id="join" class="screen on">
+    <h1>SEQUENCE</h1>
+    <p class="muted" style="text-align:center">Enter your name to join the table</p>
+    <form id="joinForm" style="display:flex;flex-direction:column;gap:10px;margin-top:20px">
+      <input id="name" maxlength="16" placeholder="Your name" autocomplete="nickname" required>
+      <button class="primary" type="submit">Join game</button>
+    </form>
+  </section>
+
+  <section id="lobby" class="screen">
+    <h1>SEQUENCE</h1>
+    <p style="text-align:center">You're on <span class="pill" id="myTeam"></span></p>
+    <div id="adminPanel">
+      <h2>Players</h2>
+      <div id="playerRows"></div>
+      <h2>Settings</h2>
+      <div class="setting"><span>Teams</span>
+        <div class="seg" style="width:160px"><button data-teams="2">2</button><button data-teams="3">3</button></div>
+      </div>
+      <div class="setting"><span>Cards per hand</span>
+        <select id="handSize">
+          <option>3</option><option>4</option><option>5</option><option>6</option><option>7</option>
+          <option value="auto">Official (by player count)</option>
+        </select>
+      </div>
+      <div class="setting"><span>Sequences to win</span>
+        <select id="sequences">
+          <option value="auto">Official</option>
+          <option>1</option><option>2</option><option>3</option><option>4</option>
+        </select>
+      </div>
+      <div class="actions" style="margin-top:16px">
+        <button id="autoTeams">Shuffle teams</button>
+        <button class="primary" id="start">Start game</button>
+      </div>
+    </div>
+    <div id="guestPanel">
+      <h2>Players</h2>
+      <div id="guestRows"></div>
+      <p class="muted" style="text-align:center;margin-top:20px" id="waitText"></p>
+    </div>
+    <div style="text-align:center;margin-top:24px"><button class="small" id="leave">Leave table</button></div>
+  </section>
+
+  <section id="game" class="screen">
+    <div class="status" id="status"></div>
+    <div class="hint" id="hint"></div>
+    <div class="hand" id="hand"></div>
+    <div id="pick"></div>
+    <div class="actions" id="actions"></div>
+  </section>
+
+  <section id="ended" class="screen">
+    <div class="big" id="endText"></div>
+    <p class="muted" style="text-align:center" id="endSub"></p>
+    <div style="margin-top:24px" id="endAdmin"><button class="primary" id="again">Back to lobby</button></div>
+  </section>
+
+  <section id="kicked" class="screen">
+    <h1>SEQUENCE</h1>
+    <p style="text-align:center">You were removed from the table.</p>
+    <button class="primary" onclick="location.reload()">Join again</button>
+  </section>
+
+  <div id="videoRemote" style="display:none"></div>
+
+  <!-- Admin buttons live at the very bottom so they aren't hit by accident. -->
+  <div class="admin-tools admin-bottom" id="gameAdmin" style="display:none">
+    <span class="label">Admin</span>
+    <button class="small" id="skipCur">Skip current player</button>
+    <button class="small danger" id="endGame">End game</button>
+  </div>
+</div>
+<div class="conn" id="conn">Reconnecting to the TV…</div>
+<div class="toast" id="toast"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/common.js"></script>
+<script src="/shared/video-remote.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} },
+  };
+
+  // The QR code on each TV carries its room, so phones join that TV's game.
+  const socket = io({ query: { room: new URLSearchParams(location.search).get('room') || '' } });
+  const remote = createVideoRemote(socket, $('videoRemote'));
+  let state = null;
+  let selIdx = null;   // selected card index in hand
+  let selCard = null;  // its value, to detect hand changes
+  let wasMyTurn = false;
+
+  function show(id) {
+    for (const s of document.querySelectorAll('.screen')) s.classList.toggle('on', s.id === id);
+  }
+
+  let toastTimer;
+  function toast(msg) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+  }
+
+  // ---------- connection ----------
+
+  socket.on('connect', () => {
+    const token = store.get('seqToken');
+    if (token) socket.emit('join', { token, name: store.get('seqName') });
+  });
+  socket.on('joined', ({ token }) => store.set('seqToken', token));
+  socket.on('toast', (m) => { toast(m); if (state) render(); });
+  // A phone that was asleep reconnects as soon as it's opened, instead of waiting for the retry timer.
+  socket.on('disconnect', () => $('conn').classList.add('on'));
+  socket.on('connect', () => $('conn').classList.remove('on'));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && !socket.connected) socket.connect(); });
+  // Tapped buttons show they're working right away; the next update from the TV redraws them.
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-act]');
+    if (b && !b.disabled) setTimeout(() => { b.disabled = true; b.textContent = b.dataset.act === 'place' ? 'Placing…' : 'Working…'; });
+  });
+
+  socket.on('kicked', () => { store.set('seqToken', null); state = null; show('kicked'); $('videoRemote').style.display = 'none'; });
+  socket.on('state', (s) => {
+    if (!s.you) { store.set('seqToken', null); state = null; show('join'); $('videoRemote').style.display = 'none'; return; }
+    state = s;
+    render();
+    $('videoRemote').style.display = '';
+    remote.render(s.video);
+  });
+
+  $('name').value = store.get('seqName') || '';
+  $('joinForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = $('name').value.trim();
+    if (!name) return;
+    store.set('seqName', name);
+    socket.emit('join', { name, token: store.get('seqToken') });
+  });
+
+  // ---------- render ----------
+
+  const teamOf = (id) => state.teams.find((t) => t.id === id);
+
+  function render() {
+    $('gameAdmin').style.display = state.phase === 'playing' && state.you.admin ? '' : 'none';
+    if (state.phase === 'lobby') { resetSel(); renderLobby(); show('lobby'); }
+    else if (state.phase === 'playing') { renderGame(); show('game'); }
+    else { renderEnded(); show('ended'); }
+  }
+
+  function renderLobby() {
+    const me = state.you;
+    const t = teamOf(me.team);
+    $('myTeam').textContent = t.name;
+    $('myTeam').style.background = t.color;
+    $('adminPanel').style.display = me.admin ? '' : 'none';
+    $('guestPanel').style.display = me.admin ? 'none' : '';
+
+    if (me.admin) {
+      $('playerRows').innerHTML = state.players.map((p) => `
+        <div class="row">
+          <span class="dot" style="background:${teamOf(p.team).color}"></span>
+          <span class="name">${esc(p.name)}${p.admin ? '<span class="tag">admin</span>' : ''}${p.connected ? '' : ' <span class="muted">(offline)</span>'}</span>
+          <select data-team="${p.id}">${state.teams.map((t) => `<option value="${t.id}" ${t.id === p.team ? 'selected' : ''}>${t.name}</option>`).join('')}</select>
+          ${p.id === me.id ? '' : `<button class="small" data-admin="${p.id}" title="Make admin">★</button><button class="small danger" data-kick="${p.id}" title="Remove">✕</button>`}
+        </div>`).join('');
+      for (const b of document.querySelectorAll('[data-teams]')) b.classList.toggle('on', +b.dataset.teams === state.teamCount);
+      $('handSize').value = String(state.handSize);
+      $('sequences').value = String(state.sequencesSetting);
+    } else {
+      $('guestRows').innerHTML = state.players.map((p) => `
+        <div class="row"><span class="dot" style="background:${teamOf(p.team).color}"></span>
+        <span class="name">${esc(p.name)}${p.admin ? '<span class="tag">admin</span>' : ''}${p.id === me.id ? ' (you)' : ''}</span></div>`).join('');
+      const admin = state.players.find((p) => p.admin);
+      $('waitText').textContent = `Waiting for ${admin ? admin.name : 'the admin'} to start the game…`;
+    }
+  }
+
+  function resetSel() { selIdx = selCard = null; }
+
+  function renderGame() {
+    const me = state.you;
+    const myTurn = state.currentPlayerId === me.id;
+    const cur = state.players.find((p) => p.id === state.currentPlayerId);
+    const myTeam = teamOf(me.team);
+
+    if (myTurn && !wasMyTurn && navigator.vibrate) navigator.vibrate([120, 60, 120]);
+    if (!myTurn) resetSel();
+    wasMyTurn = myTurn;
+
+    // Drop the selection if the hand changed under it.
+    if (selIdx !== null && (!state.hand[selIdx] || state.hand[selIdx].card !== selCard)) resetSel();
+    const sel = selIdx !== null ? state.hand[selIdx] : null;
+
+    $('status').style.background = myTurn ? myTeam.color : 'rgba(255,255,255,0.1)';
+    $('status').innerHTML = myTurn
+      ? `<span>Your turn</span><small>${myTeam.name} team</small>`
+      : `<span>${esc(cur ? cur.name : '')}'s turn</span><small>You're ${myTeam.name}</small>`;
+
+    // Once a card is committed, it stays highlighted and the hand is locked.
+    const shownIdx = myTurn && state.pending ? state.hand.findIndex((h) => h.card === state.pending.card) : selIdx;
+    $('hand').classList.toggle('picking', shownIdx !== null && shownIdx >= 0);
+    $('hand').innerHTML = state.hand.map((h, i) => {
+      const jt = jackType(h.card);
+      const label = jt === 'wild' ? 'wild' : jt === 'remove' ? 'remove' : h.dead ? 'dead' : '';
+      return `<div class="card ${faceClass(h.card)} ${i === shownIdx ? 'sel' : ''} ${h.dead ? 'dead' : ''}" data-i="${i}"
+        role="button" aria-label="${cardLabel(h.card)}">${faceHTML(h.card)}
+        ${label ? `<span class="k ${label}">${label}</span>` : ''}</div>`;
+    }).join('');
+
+    // Cards stay private until "Play this card"; after that the player aims on the TV.
+    const pd = myTurn ? state.pending : null;
+    const anyMove = state.hand.some((h) => h.targets.length);
+    let hint = '';
+    let pick = '';
+    let actions = '';
+    if (!myTurn) {
+      hint = 'Watch the board on the TV and plan your move';
+    } else if (pd) {
+      const sameSpot = (t) => t[0] === pd.cursor[0] && t[1] === pd.cursor[1];
+      const verb = pd.kind === 'remove' ? 'Remove chip' : 'Place chip';
+      if (pd.kind === 'normal' && pd.targets.length > 1) {
+        hint = 'Look at the TV: pick spot 1 or 2';
+        pick = `<div class="spots">${pd.targets.map((t, i) =>
+          `<button class="spot ${sameSpot(t) ? 'on' : ''}" data-spot="${i}">${i + 1}</button>`).join('')}</div>`;
+      } else if (pd.kind === 'normal') {
+        hint = 'Only one spot is open for this card';
+      } else {
+        hint = 'Look at the TV and move your cursor';
+        pick = `<div class="dpad">
+          <span></span><button data-dir="up" aria-label="Up">↑</button><span></span>
+          <button data-dir="left" aria-label="Left">←</button><span></span><button data-dir="right" aria-label="Right">→</button>
+          <span></span><button data-dir="down" aria-label="Down">↓</button><span></span></div>`;
+      }
+      actions = `<button class="primary" data-act="place">${verb}</button>`;
+    } else if (!sel) {
+      hint = anyMove ? 'Pick a card. Nobody sees it until you play it.' : 'No card can be played right now';
+    } else if (sel.dead) {
+      hint = 'Both spots for this card are taken';
+      actions = state.deadUsed
+        ? '<button disabled>Dead card already swapped this turn</button>'
+        : '<button class="primary" data-act="dead">Swap dead card</button>';
+    } else if (!sel.targets.length) {
+      hint = 'No opponent chip can be removed';
+    } else {
+      hint = 'Playing shows this card on the TV. You can\'t take it back.';
+      actions = '<button class="primary" data-act="commit">Play this card</button>';
+    }
+    $('pick').innerHTML = pick;
+    if (myTurn && !anyMove && !state.hand.some((h) => h.dead && !state.deadUsed))
+      actions += '<button data-act="skip">Skip my turn</button>';
+    $('hint').textContent = hint;
+    $('hint').classList.toggle('go', myTurn && !!sel && sel.targets.length > 0);
+    $('actions').innerHTML = actions;
+
+    $('skipCur').textContent = cur && !cur.connected ? `Skip ${cur.name} (offline)` : 'Skip current player';
+  }
+
+  function renderEnded() {
+    const w = teamOf(state.winner);
+    const won = state.you.team === state.winner;
+    $('endText').textContent = won ? 'You win!' : `${w.name} wins`;
+    $('endText').style.color = w.color;
+    $('endSub').textContent = won ? 'Nice sequences.' : 'Better luck next round.';
+    $('endAdmin').style.display = state.you.admin ? '' : 'none';
+  }
+
+  // ---------- input ----------
+
+  $('hand').addEventListener('click', (e) => {
+    const el = e.target.closest('.card');
+    if (!el || state.currentPlayerId !== state.you.id || state.pending) return;
+    const i = +el.dataset.i;
+    if (selIdx === i) { resetSel(); render(); return; }
+    selIdx = i;
+    selCard = state.hand[i].card;
+    render();
+  });
+
+  // Aiming: each tap moves the cursor on the TV for everyone to see.
+  $('pick').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.spot !== undefined) socket.emit('aim:spot', +b.dataset.spot);
+    if (b.dataset.dir) socket.emit('aim:move', b.dataset.dir);
+  });
+
+  $('actions').addEventListener('click', (e) => {
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'commit') socket.emit('commit', selIdx);
+    if (act === 'place') socket.emit('place');
+    if (act === 'dead') socket.emit('dead', selIdx);
+    if (act === 'skip') socket.emit('skip');
+    if (act && act !== 'commit') resetSel();
+  });
+
+  $('playerRows').addEventListener('change', (e) => {
+    const id = e.target.dataset.team;
+    if (id) socket.emit('admin:team', { playerId: id, team: e.target.value });
+  });
+  $('playerRows').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    const p = state.players.find((x) => x.id === (b.dataset.kick || b.dataset.admin));
+    if (b.dataset.kick && confirm(`Remove ${p.name} from the table?`)) socket.emit('admin:kick', p.id);
+    if (b.dataset.admin && confirm(`Make ${p.name} the admin? You'll lose admin controls.`)) socket.emit('admin:makeAdmin', p.id);
+  });
+  for (const b of document.querySelectorAll('[data-teams]'))
+    b.addEventListener('click', () => socket.emit('admin:teamCount', +b.dataset.teams));
+  $('handSize').addEventListener('change', (e) => socket.emit('admin:handSize', e.target.value === 'auto' ? 'auto' : +e.target.value));
+  $('sequences').addEventListener('change', (e) => socket.emit('admin:sequences', e.target.value === 'auto' ? 'auto' : +e.target.value));
+  $('autoTeams').addEventListener('click', () => socket.emit('admin:autoTeams'));
+  $('start').addEventListener('click', () => socket.emit('admin:start'));
+  $('leave').addEventListener('click', () => {
+    if (!confirm('Leave the table?')) return;
+    socket.emit('leave');
+    store.set('seqToken', null);
+    location.reload();
+  });
+  $('skipCur').addEventListener('click', () => { if (confirm('Skip the current player\'s turn?')) socket.emit('skip'); });
+  $('endGame').addEventListener('click', () => { if (confirm('End the game for everyone and go back to the lobby?')) socket.emit('admin:lobby'); });
+  $('again').addEventListener('click', () => socket.emit('admin:lobby'));
+</script>
+</body>
+</html>

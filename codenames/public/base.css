@@ -1,0 +1,49 @@
+:root {
+  --bg: #15181f;
+  --panel: rgba(255, 255, 255, 0.06);
+  --ink: #eceff4;
+  --muted: #9aa3b2;
+  --gold: #ffd54a;
+  --red: #d8433b;
+  --blue: #2f6fed;
+  --word: #efe6d2;
+  --word-ink: #2a2418;
+  --neutral: #c9b98f;
+  --assassin: #16161a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: radial-gradient(ellipse at top, #222838, var(--bg) 70%);
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---------- word cards (TV board and phone grids) ---------- */
+.grid { display: grid; grid-template-columns: repeat(5, 1fr); }
+.wc {
+  position: relative; border-radius: 0.5em; background: var(--word); color: var(--word-ink);
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  font-weight: 800; letter-spacing: 0.03em; line-height: 1; overflow: hidden; user-select: none;
+  box-shadow: inset 0 -0.25em 0 rgba(0, 0, 0, 0.12);
+}
+.wc.red { background: var(--red); color: #fff; }
+.wc.blue { background: var(--blue); color: #fff; }
+.wc.neutral { background: var(--neutral); color: #4a3f25; }
+.wc.assassin { background: var(--assassin); color: #fff; box-shadow: inset 0 0 0 0.15em #555; }
+
+.toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+  background: #000; color: #fff; padding: 10px 16px; border-radius: 10px;
+  font-size: 15px; z-index: 50; max-width: 90vw; text-align: center;
+  transition: opacity 0.3s; opacity: 0; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+.dot { display: inline-block; width: 0.8em; height: 0.8em; border-radius: 50%; margin-right: 0.4em; vertical-align: -0.05em; }
+.tag { font-size: 0.7em; background: var(--gold); color: #3b2c00; border-radius: 0.6em; padding: 0.1em 0.5em; margin-left: 0.4em; vertical-align: 0.15em; font-weight: 700; }
+.tag.spy { background: #fff; color: #111; }
+.off { opacity: 0.45; }
+@keyframes flip { from { transform: rotateY(90deg) scale(1.1); } to { transform: none; } }
+@keyframes drop { from { transform: translateX(-50%) scale(1.6); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }

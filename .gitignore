@@ -1,0 +1,13 @@
+node_modules/
+*.apk
+.DS_Store
+.claude/
+# Android build outputs and the bundled copy of the server
+**/android/.gradle/
+**/android/app/build/
+**/android/app/.cxx/
+**/android/app/src/main/assets/
+**/android/local.properties
+# Node.js runtime for Android (large prebuilt binaries)
+android/app/libnode/
+codenames/android/app/libnode

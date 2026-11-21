@@ -1,0 +1,129 @@
+:root {
+  --felt: #0f3a28;
+  --felt-dark: #0a2a1c;
+  --ink: #e8efe9;
+  --muted: #9fb8a9;
+  --gold: #ffd54a;
+  --card: #fbfaf6;
+  --black-suit: #161616;
+  --red-suit: #c4161c;
+  /* Set by each page's fit(): cell width, cell height, and u = the smaller of the two. */
+  --cw: 40px;
+  --ch: 40px;
+  --u: 40px;
+  --gap: 3px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--felt);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---------- card face (shared by board cells and hand cards) ---------- */
+.face {
+  background: var(--card);
+  color: var(--black-suit);
+  position: relative;
+  user-select: none;
+  overflow: hidden;
+}
+.face.red { color: var(--red-suit); }
+.face .idx {
+  position: absolute; top: 5%; left: 7%; z-index: 3;
+  display: flex; flex-direction: column; align-items: center;
+  line-height: 0.86;
+}
+.face .rank { font-size: calc(var(--u) * 0.46); font-weight: 800; letter-spacing: -0.06em; }
+.face .idx .suit { font-size: calc(var(--u) * 0.32); }
+.face .pip { position: absolute; right: 8%; bottom: 4%; font-size: calc(var(--u) * 0.56); line-height: 1; }
+
+/* ---------- board ---------- */
+.board {
+  display: grid;
+  grid-template-columns: repeat(10, var(--cw));
+  gap: var(--gap);
+  padding: var(--gap);
+  background: var(--felt-dark);
+  border-radius: 8px;
+  width: max-content;
+}
+.cell {
+  width: var(--cw);
+  height: var(--ch);
+  border-radius: calc(var(--u) * 0.1);
+  transition: transform 0.15s;
+}
+.cell.free { background: var(--gold); color: #5a4410; display: flex; align-items: center; justify-content: center; }
+.cell.free .star { font-size: calc(var(--u) * 0.7); line-height: 1; }
+
+/* Solid chip in the bottom-right, leaving the card's number visible. Colour comes from inline `color`. */
+.chip {
+  position: absolute; z-index: 2;
+  width: calc(var(--u) * 0.66); height: calc(var(--u) * 0.66);
+  right: 5%; bottom: 5%;
+  border-radius: 50%;
+  display: none;
+  background: currentColor;
+  border: calc(var(--u) * 0.07) solid rgba(255, 255, 255, 0.92);
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.05) rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.45);
+}
+.cell.has-chip .chip { display: block; }
+.cell.locked .chip { border-color: var(--gold); }
+.cell.last .chip { animation: drop 0.5s ease-out, pulse 1.4s ease-in-out 0.5s infinite; }
+.cell.last:not(.has-chip) { box-shadow: inset 0 0 0 calc(var(--u) * 0.07) #fff; }
+
+/* Picking a spot (phone): everything else goes dark, legal spots lift and glow. */
+.board.choosing .cell:not(.target):not(.selected) { filter: grayscale(0.85) brightness(0.4); }
+.cell.target {
+  z-index: 4; cursor: pointer;
+  transform: scale(1.1);
+  box-shadow: 0 0 0 3px var(--gold), 0 0 14px 5px rgba(255, 213, 74, 0.85);
+}
+.cell.selected {
+  z-index: 5;
+  transform: scale(1.22);
+  box-shadow: 0 0 0 4px #fff, 0 0 20px 8px rgba(255, 255, 255, 0.9);
+  animation: none;
+}
+.cell.ghost .chip { opacity: 0.75; animation: pulse 1s ease-in-out infinite; }
+
+/* Remove jack: the chip being aimed at must stand out from the other removable chips.
+   Those keep a thin outline; the aimed one gets a pulsing red ring and a ✕. */
+.board.removing .cell.target:not(.selected) { transform: none; animation: none; box-shadow: 0 0 0 2px rgba(255, 213, 74, 0.8); }
+.board.removing .cell.target:not(.selected) .chip { animation: none; }
+.board.removing .cell.selected {
+  transform: scale(1.3);
+  box-shadow: 0 0 0 calc(var(--u) * 0.08) #e0393e, 0 0 calc(var(--u) * 0.4) calc(var(--u) * 0.12) rgba(224, 57, 62, 0.9);
+  animation: aim 0.7s ease-in-out infinite alternate;
+}
+.board.removing .cell.selected .chip::after {
+  content: '✕'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 900; font-size: calc(var(--u) * 0.45); line-height: 1; text-shadow: 0 0 4px #000;
+}
+@keyframes aim { to { box-shadow: 0 0 0 calc(var(--u) * 0.08) #fff, 0 0 calc(var(--u) * 0.5) calc(var(--u) * 0.18) rgba(224, 57, 62, 1); } }
+
+/* Spot numbers (1, 2) shown while a player picks between a card's two spots. */
+.num {
+  position: absolute; z-index: 6; left: 50%; top: 50%;
+  width: calc(var(--u) * 0.7); height: calc(var(--u) * 0.7); margin: calc(var(--u) * -0.35) 0 0 calc(var(--u) * -0.35);
+  border-radius: 50%; background: #111; color: var(--gold); border: calc(var(--u) * 0.05) solid var(--gold);
+  font-weight: 800; font-size: calc(var(--u) * 0.46);
+  display: none; align-items: center; justify-content: center;
+}
+.cell.numbered .num { display: flex; }
+
+@keyframes drop { from { transform: scale(1.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes pulse { 50% { transform: scale(0.85); } }
+@keyframes glow { to { box-shadow: 0 0 0 3px var(--gold), 0 0 4px 1px rgba(255, 213, 74, 0.4); } }
+
+.toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+  background: #222; color: #fff; padding: 10px 16px; border-radius: 10px;
+  font-size: 15px; z-index: 50; max-width: 90vw; text-align: center;
+  transition: opacity 0.3s; opacity: 0; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+.dot { display: inline-block; width: 0.8em; height: 0.8em; border-radius: 50%; margin-right: 0.4em; vertical-align: -0.05em; }

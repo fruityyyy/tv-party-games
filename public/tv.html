@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sequence TV</title>
+<link rel="stylesheet" href="/board.css">
+<style>
+  body { overflow: hidden; font-size: 2vh; }
+  .screen { position: absolute; inset: 0; padding: 3vh 3vw; display: none; }
+  .screen.on { display: flex; }
+
+  /* Lobby */
+  #lobby { align-items: center; justify-content: center; gap: 6vw; }
+  .join { text-align: center; }
+  .join h1 { font-size: 7vh; margin: 0 0 1vh; letter-spacing: 0.04em; }
+  .join .sub { font-size: 3vh; color: var(--muted); margin-bottom: 3vh; }
+  .qr { background: #fff; padding: 2vh; border-radius: 2vh; width: 46vh; height: 46vh; }
+  .qr img { width: 100%; height: 100%; display: block; }
+  .url { font-size: 2.6vh; margin-top: 2vh; font-family: ui-monospace, monospace; }
+  .roster { min-width: 30vw; display: flex; flex-direction: column; gap: 2vh; }
+  .team-box { background: rgba(255, 255, 255, 0.06); border-radius: 1.5vh; padding: 2vh 2.5vh; border-left: 1vh solid; }
+  .team-box h2 { margin: 0 0 1vh; font-size: 3.2vh; }
+  .team-box .p { font-size: 2.8vh; padding: 0.4vh 0; }
+  .waiting { color: var(--muted); font-size: 2.6vh; }
+  .tag { font-size: 0.7em; background: var(--gold); color: #3b2c00; border-radius: 0.6em; padding: 0.1em 0.5em; margin-left: 0.4em; vertical-align: 0.15em; }
+  .off { opacity: 0.45; }
+
+  /* Game */
+  #game { gap: 3vh; align-items: center; justify-content: center; }
+  /* Wide cells laid out as a row (number left, big suit and chip right) so a wide "10" can't
+     run into the suit. Sizes come from fit(). */
+  .cell.face:not(.free) { display: flex; align-items: center; justify-content: space-between; padding: 0 9%; }
+  .cell .idx { position: static; }
+  .cell .rank { font-size: var(--rank); }
+  .cell .idx .suit { font-size: var(--suit); }
+  .cell .pip { position: static; font-size: var(--pip); }
+  /* --chip comes from fit(). On narrow cards (video on) the chip can reach under the number,
+     so the number sits on top with a white outline to stay readable. */
+  .chip { width: var(--chip); height: var(--chip); right: 3%; bottom: calc(50% - var(--chip) / 2); }
+  .cell .idx { position: relative; z-index: 3; }
+  .cell.has-chip .idx { text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 2px #fff, 0 0 1px #fff; }
+
+  .side { width: 22vw; max-width: 420px; height: 100%; display: flex; flex-direction: column; gap: 2vh; }
+  .side h1 { font-size: 4vh; margin: 0; letter-spacing: 0.04em; }
+  .turn { border-radius: 1.5vh; padding: 2vh; font-size: 3.4vh; font-weight: 700; color: #fff; }
+  .turn small { display: block; font-size: 0.55em; font-weight: 400; opacity: 0.85; margin-top: 0.4vh; }
+  .score { display: flex; justify-content: space-between; align-items: center; font-size: 2.8vh; font-weight: 700; }
+  .seq-pips span { display: inline-block; width: 2.4vh; height: 2.4vh; border-radius: 50%; border: 0.4vh solid; margin-left: 0.5vh; }
+  .players { font-size: 2.2vh; color: var(--muted); margin-top: 0.6vh; }
+  .players .now { color: #fff; font-weight: 700; text-decoration: underline; }
+  .last-move { font-size: 2.4vh; color: var(--muted); }
+  .last-move b { color: var(--ink); }
+  .mini-qr { margin-top: auto; display: flex; align-items: center; gap: 1.5vh; color: var(--muted); font-size: 2vh; }
+  .mini-qr img { width: 12vh; height: 12vh; background: #fff; padding: 0.6vh; border-radius: 1vh; }
+
+  /* Winner */
+  #win { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.7); display: none; align-items: center; justify-content: center; flex-direction: column; z-index: 10; }
+  #win.on { display: flex; }
+  #win h1 { font-size: 12vh; margin: 0; }
+  #win p { font-size: 3vh; color: var(--muted); }
+  .banner { position: absolute; top: 4vh; left: 50%; transform: translateX(-50%); font-size: 5vh; font-weight: 800; padding: 1.5vh 4vh; border-radius: 2vh; color: #fff; z-index: 5; display: none; }
+  .banner.on { display: block; animation: drop 0.4s ease-out; }
+
+  /* YouTube panel: the player is laid over the visible slot (see /shared/video-tv.js). */
+  .vslot { display: none; width: 100%; aspect-ratio: 16 / 9; border-radius: 1vh; background: #000; flex-shrink: 0; }
+  .vcap { display: none; font-size: 2vh; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: -1vh; }
+  .video-on .vslot, .video-on .vcap { display: block; }
+  .video-on .side h1, .video-on .last-move { display: none; }
+</style>
+</head>
+<body>
+  <section id="lobby" class="screen on">
+    <div class="join">
+      <h1>SEQUENCE</h1>
+      <div class="sub">Scan with your phone to join</div>
+      <div class="qr"><img class="joinqr" src="" alt="Join QR code"></div>
+      <div class="url" id="url"></div>
+    </div>
+    <div class="roster"><div id="roster" style="display:flex;flex-direction:column;gap:2vh"></div>
+      <div class="vslot" data-video-slot></div><div class="vcap" id="vcapLobby" style="margin-top:0"></div></div>
+  </section>
+
+  <section id="game" class="screen">
+    <div id="board" class="board"></div>
+    <aside class="side">
+      <h1>SEQUENCE</h1>
+      <div class="vslot" data-video-slot></div>
+      <div class="vcap" id="vcap"></div>
+      <div class="turn" id="turn"></div>
+      <div id="scores"></div>
+      <div class="last-move" id="last"></div>
+      <div class="mini-qr"><img class="joinqr" src="" alt=""><span>Dropped out?<br>Scan to rejoin</span></div>
+    </aside>
+  </section>
+
+  <div class="banner" id="banner"></div>
+  <div id="win"><h1 id="winText"></h1><p>The admin can start a new round from their phone</p></div>
+  <div class="toast" id="toast"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/common.js"></script>
+<script src="/shared/video-tv.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  // Which game this TV shows; in the cloud each TV has its own room code.
+  const ROOM = new URLSearchParams(location.search).get('room') || '';
+  const socket = io({ query: { room: ROOM } });
+  const updateBoard = createBoard($('board'));
+  const tvVideo = createTvVideo(socket);
+  let state = null;
+  let lastSeenMove = 0;
+
+  // The join link changes when the TV moves to another network: redraw the link and every QR code.
+  function showJoin({ joinUrl }) {
+    if ($('url').textContent === joinUrl) return;
+    $('url').textContent = joinUrl;
+    for (const img of document.querySelectorAll('img.joinqr')) img.src = `/api/qr.svg?room=${ROOM}&t=${Date.now()}`;
+  }
+  const loadJoin = () => fetch('/api/info?room=' + ROOM).then((r) => r.json()).then(showJoin);
+  loadJoin();
+  socket.on('info', loadJoin);
+  socket.on('connect', () => socket.emit('tv:hello'));
+  socket.on('state', (s) => { state = s; render(); });
+
+  function fit() {
+    // Wide cells: the board fills the space left of the sidebar, up to 1.6x wider than tall.
+    // With a video on, the sidebar widens to hold it (more in big-video mode) and the board shrinks.
+    const v = state && state.video;
+    const sideW = !v || !v.active ? Math.min(innerWidth * 0.22, 420) : innerWidth * (v.big ? 0.6 : 0.4);
+    Object.assign(document.querySelector('.side').style, { width: sideW + 'px', maxWidth: 'none' });
+    const gap = Math.max(2, Math.round(innerHeight / 300));
+    const ch = (innerHeight * 0.94 - gap * 11) / 10;
+    const cw = Math.min((innerWidth * 0.94 - sideW - innerHeight * 0.03 - gap * 11) / 10, ch * 1.6);
+    setCellSize(cw, ch, gap);
+    // Font sizes bounded by both width and height so "10" + suit always fit inside the card.
+    const s = document.documentElement.style;
+    s.setProperty('--rank', Math.floor(Math.min(ch * 0.5, cw * 0.34)) + 'px');
+    s.setProperty('--suit', Math.floor(Math.min(ch * 0.28, cw * 0.2)) + 'px');
+    s.setProperty('--pip', Math.floor(Math.min(ch * 0.58, cw * 0.34)) + 'px');
+    s.setProperty('--chip', Math.floor(Math.min(ch * 0.78, cw * 0.62)) + 'px');
+    tvVideo.place(v && v.active);
+  }
+  addEventListener('resize', fit);
+  fit();
+
+  function teamOf(id) { return state.teams.find((t) => t.id === id); }
+
+  function render() {
+    const inGame = state.phase !== 'lobby';
+    $('lobby').classList.toggle('on', !inGame);
+    $('game').classList.toggle('on', inGame);
+    const v = state.video;
+    document.body.classList.toggle('video-on', v.active);
+    const cap = v.active ? `${v.paused ? '⏸ ' : '▶ '}${esc(v.title || '')}${v.queue.length ? ` · ${v.queue.length} up next` : ''}` : '';
+    $('vcap').innerHTML = $('vcapLobby').innerHTML = cap;
+    fit();
+    requestAnimationFrame(() => tvVideo.place(v.active)); // after the screen below is drawn
+    if (!inGame) return renderLobby();
+
+    // A committed card is aimed in public: its spots glow and the player's cursor is shown.
+    // Wild jacks fit almost anywhere, so only the cursor is shown for them.
+    const pd = state.pending;
+    updateBoard(state, !pd ? {} : {
+      targets: pd.kind === 'wild' ? [] : pd.targets,
+      selected: pd.cursor,
+      ghost: pd.kind === 'remove' ? null : teamOf(state.players.find((p) => p.id === pd.playerId).team).id,
+      numbered: pd.kind === 'normal' && pd.targets.length > 1,
+      removing: pd.kind === 'remove',
+    });
+    const cur = state.players.find((p) => p.id === state.currentPlayerId);
+    if (cur) {
+      const t = teamOf(cur.team);
+      $('turn').style.background = t.color;
+      $('turn').innerHTML = pd
+        ? `${esc(cur.name)} plays ${cardLabel(pd.card)}<small>${pd.kind === 'remove' ? 'Choosing a chip to remove' : 'Choosing a spot'}</small>`
+        : `${esc(cur.name)}'s turn<small>${t.name} team${cur.connected ? '' : ' · disconnected'}</small>`;
+    } else {
+      $('turn').style.background = '#444';
+      $('turn').textContent = 'Game over';
+    }
+
+    $('scores').innerHTML = state.teams.map((t) => {
+      const pips = Array.from({ length: state.sequencesToWin }, (_, i) =>
+        `<span style="border-color:${t.color};background:${i < t.sequences ? t.color : 'transparent'}"></span>`).join('');
+      const names = state.players.filter((p) => p.team === t.id).map((p) =>
+        `<span class="${p.id === state.currentPlayerId ? 'now' : ''} ${p.connected ? '' : 'off'}">${esc(p.name)}</span>`).join(', ');
+      return `<div class="team-box" style="border-color:${t.color};margin-bottom:1.5vh">
+        <div class="score"><span>${t.name}</span><span class="seq-pips">${pips}</span></div>
+        <div class="players">${names}</div></div>`;
+    }).join('');
+
+    const lm = state.lastMove;
+    $('last').innerHTML = !lm ? 'First move — good luck!'
+      : lm.skipped ? `<b>${esc(lm.name)}</b> skipped their turn`
+      : lm.removed ? `<b>${esc(lm.name)}</b> used ${cardLabel(lm.card)} to remove a ${teamOf(lm.removed).name} chip`
+      : `<b>${esc(lm.name)}</b> played ${cardLabel(lm.card)}`;
+
+    if (lm && lm.id !== lastSeenMove) {
+      lastSeenMove = lm.id;
+      if (lm.newSequences) showBanner(`SEQUENCE! ${teamOf(lm.team).name}`, teamOf(lm.team).color);
+    }
+
+    $('win').classList.toggle('on', state.phase === 'ended');
+    if (state.winner) {
+      const w = teamOf(state.winner);
+      $('winText').textContent = `${w.name} wins!`;
+      $('winText').style.color = w.color;
+    }
+  }
+
+  function renderLobby() {
+    $('win').classList.remove('on');
+    lastSeenMove = 0;
+    $('roster').innerHTML = state.players.length === 0
+      ? '<div class="waiting">Waiting for players… The first to join becomes the admin.</div>'
+      : state.teams.map((t) => {
+          const ps = state.players.filter((p) => p.team === t.id);
+          return `<div class="team-box" style="border-color:${t.color}"><h2 style="color:${t.color}">${t.name}</h2>
+            ${ps.map((p) => `<div class="p ${p.connected ? '' : 'off'}">${esc(p.name)}${p.admin ? '<span class="tag">admin</span>' : ''}</div>`).join('') || '<div class="waiting">No players yet</div>'}
+          </div>`;
+        }).join('') + `<div class="waiting">First team to ${state.sequencesToWin} sequence${state.sequencesToWin > 1 ? 's' : ''} wins. The admin starts the game from their phone.</div>`;
+  }
+
+  let bannerTimer;
+  function showBanner(text, color) {
+    const b = $('banner');
+    b.textContent = text;
+    b.style.background = color;
+    b.classList.remove('on'); void b.offsetWidth; b.classList.add('on');
+    clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(() => b.classList.remove('on'), 3500);
+  }
+</script>
+</body>
+</html>

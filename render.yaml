@@ -1,0 +1,27 @@
+# Render Blueprint: both games as free web services. In the cloud every TV gets its own room.
+services:
+  - type: web
+    name: sequence-tv-game
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /api/info
+    envVars:
+      - key: CLOUD
+        value: "1"
+      - key: NODE_VERSION
+        value: "20"
+  - type: web
+    name: codenames-tv-game
+    runtime: node
+    plan: free
+    rootDir: codenames
+    buildCommand: npm ci --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /api/info
+    envVars:
+      - key: CLOUD
+        value: "1"
+      - key: NODE_VERSION
+        value: "20"
