@@ -1,6 +1,7 @@
 package com.codenames.tv;
 
 import android.app.Activity;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.net.LinkAddress;
@@ -14,6 +15,8 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -24,17 +27,22 @@ import java.net.HttpURLConnection;
 import java.net.Inet4Address;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.security.SecureRandom;
 
 /** Full-screen TV board. The game server runs on the TV itself; phones join over Wi-Fi. */
 public class MainActivity extends Activity {
     private static final int PORT = 3001;
     // "localhost", not 127.0.0.1: YouTube refuses to play embedded videos on pages from a bare IP.
     private static final String LOCAL = "http://localhost:" + PORT;
+    // The online game (free Render service). Phones can join from any network; if it can't be
+    // reached the TV falls back to its own built-in server above.
+    private static final String CLOUD = "https://codenames-tv-game.onrender.com";
 
     private WebView web;
     private TextView status;
     private final Handler main = new Handler(Looper.getMainLooper());
     private String currentIp;
+    private boolean usingCloud = false;
 
     @Override
     protected void onCreate(Bundle saved) {
@@ -49,7 +57,16 @@ public class MainActivity extends Activity {
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
-        web.setWebViewClient(new WebViewClient());
+        web.setWebViewClient(new WebViewClient() {
+            // Lost the internet while showing the online game: switch to the TV's own server.
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest req, WebResourceError err) {
+                if (usingCloud && req.isForMainFrame()) {
+                    usingCloud = false;
+                    waitForServer(0);
+                }
+            }
+        });
         // The YouTube player in the side panel needs its own cookies to load reliably.
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
         web.setVisibility(View.INVISIBLE);
@@ -73,7 +90,7 @@ public class MainActivity extends Activity {
         if (ip != null) {
             currentIp = ip;
             NodeRunner.start(getApplicationContext(), "http://" + ip + ":" + PORT);
-            waitForServer(0);
+            tryCloud(0);
             watchNetwork();
         } else if (attempt < 60) {
             status.setText("Waiting for the network…");
@@ -83,19 +100,59 @@ public class MainActivity extends Activity {
         }
     }
 
-    // Polls until the game server answers, then shows the board.
+    // The free online server sleeps when idle and takes up to a minute to wake, so keep asking
+    // for a while before settling for the built-in one.
+    private void tryCloud(int attempt) {
+        status.setText("Connecting to the online game…" + (attempt > 2 ? "\nWaking it up, this can take a minute" : ""));
+        new Thread(() -> {
+            boolean up = answers(CLOUD + "/api/info", 10000);
+            main.post(() -> {
+                if (up) {
+                    usingCloud = true;
+                    web.loadUrl(CLOUD + "/tv?room=" + roomCode());
+                    web.setVisibility(View.VISIBLE);
+                    status.setVisibility(View.GONE);
+                } else if (attempt < 7) {
+                    main.postDelayed(() -> tryCloud(attempt + 1), 2000);
+                } else {
+                    waitForServer(0);
+                }
+            });
+        }).start();
+    }
+
+    // Each TV keeps the same room code forever, so its QR code and players' saved seats stay valid.
+    private String roomCode() {
+        SharedPreferences prefs = getSharedPreferences("game", MODE_PRIVATE);
+        String code = prefs.getString("room", null);
+        if (code == null) {
+            String letters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+            SecureRandom rnd = new SecureRandom();
+            StringBuilder b = new StringBuilder();
+            for (int i = 0; i < 6; i++) b.append(letters.charAt(rnd.nextInt(letters.length())));
+            code = b.toString();
+            prefs.edit().putString("room", code).apply();
+        }
+        return code;
+    }
+
+    private static boolean answers(String url, int timeoutMs) {
+        try {
+            HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+            c.setConnectTimeout(timeoutMs);
+            c.setReadTimeout(timeoutMs);
+            boolean ok = c.getResponseCode() == 200;
+            c.disconnect();
+            return ok;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    // Polls until the TV's own game server answers, then shows the board.
     private void waitForServer(int attempt) {
         new Thread(() -> {
-            boolean up = false;
-            try {
-                HttpURLConnection c = (HttpURLConnection) new URL(LOCAL + "/api/info").openConnection();
-                c.setConnectTimeout(500);
-                c.setReadTimeout(500);
-                up = c.getResponseCode() == 200;
-                c.disconnect();
-            } catch (Exception ignored) {
-            }
-            boolean ready = up;
+            boolean ready = answers(LOCAL + "/api/info", 500);
             main.post(() -> {
                 if (ready) {
                     web.loadUrl(LOCAL + "/tv");

@@ -44,6 +44,8 @@ app.set('trust proxy', true);
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/shared', express.static(SHARED));
 app.get('/', (req, res) => res.redirect('/tv'));
+// Short link for the TV's Downloader app: the latest TV app from the project's GitHub release.
+app.get('/apk', (req, res) => res.redirect('https://github.com/fruityyyy/tv-party-games/releases/latest/download/sequence.apk'));
 app.get('/tv', (req, res) => res.sendFile(path.join(__dirname, 'public/tv.html')));
 app.get('/play', (req, res) => res.sendFile(path.join(__dirname, 'public/play.html')));
 app.get('/api/info', (req, res) => res.json({ joinUrl: rooms.joinUrl(baseFor(req), req.query.room) }));
